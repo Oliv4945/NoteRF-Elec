@@ -17,7 +17,7 @@
 #ifdef DEBUG_ON
   #define DEBUG( input )    { Serial.print(input); delay(1); }
   #define DEBUGDec( input ) { Serial.print( input, DEC); delay(1); }
-  #define DEBUGHex( input ) { Serial.println(input, HEX); delay(1); }
+  #define DEBUGHex( input ) { Serial.print(input, HEX); delay(1); }
   #define DEBUGln( input )  { Serial.println(input); delay(1); }
 #else
   #define DEBUG(input);
@@ -58,15 +58,15 @@ void setup() {
   
   // RFM69 init.
   DEBUG( "RFM69 initialisation" );
-  radio.initialize( FREQUENCY, NODEID, NETWORKID );
-#ifdef IS_RFM69HW
-  radio.setHighPower( RFM_HIGHPOWER );
-#endif
-  radio.encrypt( ENCRYPTKEY );
-  radio.setPowerLevel( 10 );
+  radio.initialize( RFM_FREQUENCY, RFM_NODEID, RFM_NETWORKID );
+  #ifdef IS_RFM69HW
+    radio.setHighPower( true );
+  #endif
+  radio.encrypt( RFM_ENCRYPTKEY );
+  radio.setPowerLevel( RFM_POWER_LEVEL );
   //radio.setFrequency( 919000000 ); //set frequency to some custom frequency - TBC
   char buff[50];
-  sprintf( buff, "\nTransmitting at %d Mhz...", FREQUENCY==RF69_433MHZ ? 433 : FREQUENCY==RF69_868MHZ ? 868 : 915 );
+  sprintf( buff, "\nTransmitting at %d Mhz...", RFM_FREQUENCY==RF69_433MHZ ? 433 : RFM_FREQUENCY==RF69_868MHZ ? 868 : 915 );
   DEBUGln( buff );
   delay( 10 );
   
@@ -117,16 +117,13 @@ void loop() {
   char buffer[50];
   boolean requestACK;
   uint8_t bufflen;
-  int counter, counterOK, counterNOK, i, time, dht22_check;
+  int i, time, dht22_check;
   uint16_t vccCentiVolt;
   struct DHT22Data dht22Data;
   uint8_t dataType;
   
   // Variable initialisation
   requestACK = false;
-  counter = 0;
-  counterOK = 0;
-  counterNOK = 0;
   time = 0;
   
   // Send message to the gateway
@@ -136,12 +133,10 @@ void loop() {
   sprintf( buffer+bufflen, "%s", "Start" );
   bufflen = bufflen + strlen( "Start" );
   
-  if ( radio.sendWithRetry( GATEWAYID, &buffer, bufflen ) ) {
-    DEBUGln( " ok!" );
-    counterOK ++;
+  if ( radio.sendWithRetry( RFM_GATEWAYID, &buffer, bufflen ) ) {
+    DEBUGln( "RFM - OK" );
   } else {
-    DEBUGln( " nothing..." );
-    counterNOK ++;
+    DEBUGln( "RFM - NOK" );
   }
   
   
@@ -189,14 +184,11 @@ void loop() {
     DEBUGln( bufflen );
     
 
-    if ( radio.sendWithRetry( GATEWAYID, &buffer, bufflen ) ) {
-      DEBUGln( " ok!" );
-      counterOK ++;
+    if ( radio.sendWithRetry( RFM_GATEWAYID, &buffer, bufflen ) ) {
+      DEBUGln( "RFM - OK" );
     } else {
-      DEBUGln( " nothing..." );
-      counterNOK ++;
+      DEBUGln( "RFM - NOK" );
     }
-    counter ++;
     radio.sleep();
     
     // Wait 1 min
@@ -225,17 +217,17 @@ int readVcc() {
     ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
   #endif  
  
-  delay(2); // Wait for Vref to settle
-  ADCSRA |= _BV(ADSC); // Start conversion
-  while (bit_is_set(ADCSRA,ADSC)); // measuring
+  delay( 2 );                       // Wait for Vref to settle
+  ADCSRA |= _BV( ADSC );            // Start conversion
+  while (bit_is_set(ADCSRA,ADSC));  // Measuring
  
-  uint8_t low  = ADCL; // must read ADCL first - it then locks ADCH  
-  uint8_t high = ADCH; // unlocks both
+  uint8_t low  = ADCL;              // Must read ADCL first - it then locks ADCH  
+  uint8_t high = ADCH;              // Unlocks both
  
   int result = (high<<8) | low;
  
-  result = 109881L / result; // Calculate Vcc (in centiV); 1125300 = 1.1*etalonnage*1023*1000
-  return result; // Vcc in millivolts
+  result = 109881L / result;        // Calculate Vcc (in centiV); 1125300 = 1.1*etalonnage*1023*1000
+  return result;                    // Vcc in millivolts
 }
 
 unsigned int readVin() {
