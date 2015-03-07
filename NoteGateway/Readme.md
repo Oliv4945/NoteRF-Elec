@@ -2,5 +2,6 @@
 No other configuration necessary than :
 * NETWORKID
 * ENCRYPTKEY
+(configutation.h)
 
 TBC
