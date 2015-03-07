@@ -6,23 +6,16 @@
 
 #include <RFM69.h>    //get it here: https://www.github.com/lowpowerlab/rfm69
 #include <SPI.h>
+#include "configuration.h"
 
-#define NODEID        0    //unique for each node on same network
-#define NETWORKID     110  //the same on all nodes that talk to each other
-//Match frequency to the hardware version of the radio on your Moteino (uncomment one):
-#define FREQUENCY     RF69_433MHZ
-//#define FREQUENCY     RF69_868MHZ
-//#define FREQUENCY     RF69_915MHZ
-#define ENCRYPTKEY    "sampleEncryptKey" //exactly the same 16 characters/bytes on all nodes!
-#define IS_RFM69HW    //uncomment only for RFM69HW! Leave out if you have RFM69W!
-#define ACK_TIME      30 // max # of ms to wait for an ack
-#define SERIAL_BAUD   115200
+
 
 
 // Data types
 #define DATA_STRING    0
 #define DATA_DHT22     1
 #define DATA_TELEINFOCLIENT 2
+#define DATA_DS18B20   3
 
 
 
@@ -35,6 +28,10 @@ struct TeleInfoClientData {
   unsigned int papp;
 };
 struct dht22Data {
+  int16_t temperature;
+  uint16_t humidity;
+};
+struct DS18B20Data {
   int16_t temperature;
   uint16_t humidity;
 };
@@ -87,6 +84,7 @@ void loop() {
       sprintf( buffer, "%d|%lu|%lu|%u|%u|%d|%d", radio.SENDERID, ticData.indexHP, ticData.indexHC, ticData.iinst, ticData.papp, battery, radio.RSSI );
       */
       
+      // Select the message ID - TBC - Switch( bufferRFM[0] );
       if ( bufferRFM[0] == DATA_STRING ) {
         Serial.print( '[' ); Serial.print( radio.SENDERID, DEC ); Serial.print( "] " );
         bufferPointer = bufferRFM + 1;
@@ -98,7 +96,7 @@ void loop() {
         memcpy( &dht22Data, bufferPointer, sizeof( struct dht22Data) );
         bufferPointer += sizeof( struct dht22Data);
         memcpy( &sensorBattery, bufferPointer, sizeof( uint16_t ) );
-        sprintf( bufferSerial, "%d|%d|%d|%d|%d\n", radio.SENDERID, dht22Data.temperature, dht22Data.humidity, sensorBattery, radio.RSSI );
+        sprintf( bufferSerial, "%d|%d|%d|%d|%d|%d\n", radio.SENDERID, DATA_DHT22, dht22Data.temperature, dht22Data.humidity, sensorBattery, radio.RSSI );
         Serial.print( bufferSerial );
       }
       

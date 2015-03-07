@@ -7,15 +7,18 @@
 #include <SPI.h>
 #include <OneWire.h>
 #include <LowPower.h>
-#include <dht.h>
+#include "configuration.h"
+#ifdef DATA_DHT22
+  #include <dht.h>
+#endif
 
-// Select debug
-#define DEBUG_ON  // From low power lab :)
+// Activate/desactivate debug with only one #define
+// From low power lab :)
 #ifdef DEBUG_ON
-  #define DEBUG( input )   { Serial.print(input); delay(1); }
+  #define DEBUG( input )    { Serial.print(input); delay(1); }
   #define DEBUGDec( input ) { Serial.print( input, DEC); delay(1); }
   #define DEBUGHex( input ) { Serial.println(input, HEX); delay(1); }
-  #define DEBUGln( input ) { Serial.println(input); delay(1); }
+  #define DEBUGln( input )  { Serial.println(input); delay(1); }
 #else
   #define DEBUG(input);
   #define DEBUGDec( input )
@@ -24,29 +27,8 @@
 #endif
 
 
-// Network configuration
-#define NODEID        4      // Unique for each node on same network
-#define NETWORKID     110    // The same on all nodes that talk to each other
-#define GATEWAYID     0
-#define FREQUENCY     RF69_433MHZ
-#define ENCRYPTKEY    "sampleEncryptKey" // Exactly the same 16 characters/bytes on all nodes!
-#define IS_RFM69HW           // Uncomment only for RFM69HW! Leave out if you have RFM69W!
-#define ACK_TIME      30     // max # of ms to wait for an ack
-#define RFM_HIGHPOWER true
-
-
-// Others
-#define SERIAL_BAUD   115200
-
-// Node configuration
-// #define BATTERY_VCC
-#define BATTERY_VIN
-// Data types
+// Others - This data has not to be configured
 #define DATA_STRING    0
-#define DATA_DHT22     1
-// PIN
-#define PIN_DHT22_DATA  6
-#define PIN_DHT22_POWER 7
 
 
 // Structures
@@ -54,11 +36,17 @@ struct DHT22Data {
   int16_t temperature;
   uint16_t humidity;
 };
+struct DS18B20Data {
+  int16_t temperature;
+  uint16_t humidity;
+};
 
 
 // Objects
 RFM69 radio;
-dht DHT22;
+#ifdef DATA_DHT22
+  dht DHT22;
+#endif
 
 
 void setup() {
@@ -83,65 +71,53 @@ void setup() {
   delay( 10 );
   
   
-  
-  // Pins
-  pinMode( PIN_DHT22_POWER, OUTPUT );
-  /*pinMode( PIN_DHT22_DATA, OUTPUT );
-  Serial.println( " Power " );
-  digitalWrite( PIN_DHT22_POWER, HIGH );
-  digitalWrite( PIN_DHT22_DATA, HIGH );
-  delay(10000);
-  Serial.println( "10s" );
-  delay(10000);
-  Serial.println( " 20s " );
-  delay(10000);
-  Serial.println( " 30s " );*/
-  
-  
-  // DHT22 check
-  digitalWrite( PIN_DHT22_POWER, 1 );                   // Power the DHT22
-  // LowPower.powerDown( SLEEP_4S, ADC_OFF, BOD_OFF ); // Wait DHT22 start
-  delay( 4000 );
-  int chk = DHT22.read22( PIN_DHT22_DATA );
-  switch ( chk ) {
-  case DHTLIB_OK:
-      DEBUG("DHT22 - OK,\t");
-      break;
-  case DHTLIB_ERROR_CHECKSUM:
-      DEBUG("DHT22 - Checksum error,\t");
-      break;
-  case DHTLIB_ERROR_TIMEOUT:
-      DEBUG("DHT22 - Time out error,\t");
-      break;
-  case DHTLIB_ERROR_CONNECT:
-      DEBUG("DHT22 - Connect error,\t");
-      break;
-  case DHTLIB_ERROR_ACK_L:
-      DEBUG("DHT22 - Ack Low error,\t");
-      break;
-  case DHTLIB_ERROR_ACK_H:
-      DEBUG("DHT22 - Ack High error,\t");
-      break;
-  default:
-      DEBUG("DHT22 - Unknown error,\t");
-      break;
-  }
-  // DISPLAY DATA
-  DEBUG( "DHT22 - " );
-  DEBUG( DHT22.humidity );
-  DEBUG( ",\t" );
-  DEBUGln( DHT22.temperature );
-  // digitalWrite( PIN_DHT22_POWER, 0);                // Unpower the DHT2 - TBC might be before
+  #ifdef DATA_DHT22
+    // Pins
+    pinMode( PIN_DHT22_POWER, OUTPUT );
+    // DHT22 check
+    digitalWrite( PIN_DHT22_POWER, HIGH );                   // Power the DHT22
+    LowPower.powerDown( SLEEP_4S, ADC_OFF, BOD_OFF );        // Wait DHT22 start
+    int chk = DHT22.read22( PIN_DHT22_DATA );
+    switch ( chk ) {
+    case DHTLIB_OK:
+        DEBUG("DHT22 - OK,\t");
+        // DISPLAY DATA
+        DEBUG( DHT22.humidity );
+        DEBUG( "% ,\t" );
+        DEBUG( DHT22.temperature );
+        DEBUGln( "C" );
+        break;
+    case DHTLIB_ERROR_CHECKSUM:
+        DEBUG("DHT22 - Checksum error,\t");
+        break;
+    case DHTLIB_ERROR_TIMEOUT:
+        DEBUG("DHT22 - Time out error,\t");
+        break;
+    case DHTLIB_ERROR_CONNECT:
+        DEBUG("DHT22 - Connect error,\t");
+        break;
+    case DHTLIB_ERROR_ACK_L:
+        DEBUG("DHT22 - Ack Low error,\t");
+        break;
+    case DHTLIB_ERROR_ACK_H:
+        DEBUG("DHT22 - Ack High error,\t");
+        break;
+    default:
+        DEBUG("DHT22 - Unknown error,\t");
+        break;
+    }
+    // digitalWrite( PIN_DHT22_POWER, 0);                // Unpower the DHT2 - TBC might be before, check library
+  #endif
   
 }
 
 
 void loop() {
-  // Variable initialisation
+  // Variable declaration
   char buffer[50];
   boolean requestACK;
   uint8_t bufflen;
-  int counter, counterOK, counterNOK, i, time;
+  int counter, counterOK, counterNOK, i, time, dht22_check;
   uint16_t vccCentiVolt;
   struct DHT22Data dht22Data;
   uint8_t dataType;
@@ -170,6 +146,8 @@ void loop() {
   
   
   while (1) {
+    // Reset sending buffer length
+    bufflen = 0;
     
     // Read VCC level
     #ifdef BATTERY_VCC
@@ -180,35 +158,36 @@ void loop() {
     #endif
     DEBUG( "VCC : " ); DEBUG( vccCentiVolt ); DEBUGln( " cV");
   
-    // Read DHT22
-    // digitalWrite( PIN_DHT22_POWER, 1);                // Power the DHT22
-    // LowPower.powerDown( SLEEP_8S, ADC_OFF, BOD_OFF ); // Wait DHT22 start
-    DHT22.read22( PIN_DHT22_DATA );                   // TBC - Add control of chk
-    dht22Data.temperature = (int16_t) (DHT22.temperature*100.0);
-    dht22Data.humidity = (uint16_t) (DHT22.humidity*100.0);
-    // digitalWrite( PIN_DHT22_POWER, 0);   // Unpower the DHT22
+    #ifdef DATA_DHT22
+      // Read DHT22
+      // digitalWrite( PIN_DHT22_POWER, 1);                // Power the DHT22
+      // LowPower.powerDown( SLEEP_8S, ADC_OFF, BOD_OFF ); // Wait DHT22 start
+      dht22_check = DHT22.read22( PIN_DHT22_DATA );   
+      if ( dht22_check == DHTLIB_OK ) {    
+        dht22Data.temperature = (int16_t) (DHT22.temperature*100.0);
+        dht22Data.humidity = (uint16_t) (DHT22.humidity*100.0);
+        // digitalWrite( PIN_DHT22_POWER, 0);   // Unpower the DHT22
+        
+        // Add data to the buffer
+        dataType = DATA_DHT22;
+        memcpy( buffer+bufflen, &dataType, sizeof( uint8_t ) );
+        bufflen = bufflen + sizeof( uint8_t );
+        memcpy( buffer+bufflen, &dht22Data, sizeof( struct DHT22Data ) );
+        bufflen = bufflen + sizeof( struct DHT22Data );
+      } else {  // TBC - Send error via RF
+        DEBUG( "DHT22 - Check NOK : " );
+        DEBUGln( dht22_check );
+      }
+    #endif
     
 
     
     // Prepare buffer
-    bufflen = sizeof( uint8_t );
-    dataType = DATA_DHT22;
-    memcpy( buffer, &dataType, bufflen );
-    memcpy( buffer+bufflen, &dht22Data, sizeof( struct DHT22Data ) );
-    bufflen = bufflen + sizeof( struct DHT22Data );
     memcpy( buffer+bufflen, &vccCentiVolt, sizeof( uint16_t) );
     bufflen = bufflen + sizeof( uint16_t);
     DEBUG( "Bufflen : " );
     DEBUGln( bufflen );
     
-    /*
-    struct DHT22Data test;
-    memcpy( &test, buffer+1, sizeof( struct DHT22Data ) );
-    Serial.print( "Temperature : " );
-    Serial.println( test.temperature );
-    Serial.print( "Humidité : " );
-    Serial.print( test.humidity );
-    */
 
     if ( radio.sendWithRetry( GATEWAYID, &buffer, bufflen ) ) {
       DEBUGln( " ok!" );
@@ -221,7 +200,7 @@ void loop() {
     radio.sleep();
     
     // Wait 1 min
-    while ( time < 7 ) {
+   while ( time < 7 ) {
       LowPower.powerDown( SLEEP_8S, ADC_OFF, BOD_OFF );
       time++;
       DEBUG( "Time : "); DEBUGln( time );
@@ -262,7 +241,7 @@ int readVcc() {
 unsigned int readVin() {
   int Vin;
   // Vin = analogRead( A7 )*3.3/1024*2*100*417/406; // Read value*3.3/1024, Times 2 for resistors, times 100 for centivolts, *417/406 for calibration
-  Vin = (unsigned int) analogRead( A7 )*0.6619939193;
+  Vin = (unsigned int) analogRead( A7 )*0.6619939193; // TBC - Add calibration value in configuration.h
   return Vin;
   
 }
