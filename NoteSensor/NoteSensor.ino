@@ -107,6 +107,7 @@ void setup() {
         break;
     }
     // digitalWrite( PIN_DHT22_POWER, 0);                // Unpower the DHT2 - TBC might be before, check library
+    LowPower.powerDown( SLEEP_1S, ADC_OFF, BOD_OFF );    // Avoid error on first reading in loop()
   #endif
   
 }
