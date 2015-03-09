@@ -59,7 +59,7 @@ void setup() {
   // RFM69 init.
   DEBUG( "RFM69 initialisation" );
   radio.initialize( RFM_FREQUENCY, RFM_NODEID, RFM_NETWORKID );
-  #ifdef IS_RFM69HW
+  #ifdef RFM_IS_RFM69HW
     radio.setHighPower( true );
   #endif
   radio.encrypt( RFM_ENCRYPTKEY );
