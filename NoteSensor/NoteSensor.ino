@@ -11,6 +11,10 @@
 #ifdef DATA_DHT22
   #include <dht.h>
 #endif
+#ifdef DATA_TELEINFOCLIENT
+  #include <SoftwareSerial.h>
+  #include <TeleInfoClient.h>
+#endif
 
 // Activate/desactivate debug with only one #define
 // From low power lab :)
@@ -32,20 +36,34 @@
 
 
 // Structures
-struct DHT22Data {
-  int16_t temperature;
-  uint16_t humidity;
-};
-struct DS18B20Data {
-  int16_t temperature;
-  uint16_t humidity;
-};
-
+#ifdef DATA_DHT22
+  struct DHT22Data {
+    int16_t temperature;
+    uint16_t humidity;
+  };
+#endif
+#ifdef DATA_TELEINFOCLIENT
+  struct TeleInfoClientData {
+    unsigned long indexHC;
+    unsigned long indexHP;
+    unsigned int iinst;
+    unsigned int papp;
+  };
+#endif
+#ifdef DATA_DS18B20
+  struct DS18B20Data {
+    int16_t temperature;
+    uint16_t humidity;
+  };
+#endif
 
 // Objects
 RFM69 radio;
 #ifdef DATA_DHT22
   dht DHT22;
+#endif
+#ifdef DATA_TELEINFOCLIENT
+  TeleInfoClient tic( 3, 10, 11);
 #endif
 
 
@@ -123,6 +141,10 @@ void loop() {
   struct DHT22Data dht22Data;
   uint8_t dataType;
   
+  #ifdef DATA_TELEINFOCLIENT
+    struct TeleInfoClientData ticData;
+  #endif
+  
   // Variable initialisation
   requestACK = false;
   time = 0;
@@ -170,27 +192,50 @@ void loop() {
         bufflen = bufflen + sizeof( uint8_t );
         memcpy( buffer+bufflen, &dht22Data, sizeof( struct DHT22Data ) );
         bufflen = bufflen + sizeof( struct DHT22Data );
+        // Prepare buffer
+        memcpy( buffer+bufflen, &vccCentiVolt, sizeof( uint16_t) );
+        bufflen = bufflen + sizeof( uint16_t);
+        DEBUG( "Bufflen : " );
+        DEBUGln( bufflen );
       } else {  // TBC - Send error via RF
         DEBUG( "DHT22 - Check NOK : " );
         DEBUGln( dht22_check );
       }
+      if ( radio.sendWithRetry( RFM_GATEWAYID, &buffer, bufflen ) ) {
+        DEBUGln( "RFM - OK" );
+      } else {
+        DEBUGln( "RFM - NOK" );
+      }
+      radio.sleep();
     #endif
     
-
+    // TBC - Need to serialize data, or at least avoid sending VCC twice
     
-    // Prepare buffer
-    memcpy( buffer+bufflen, &vccCentiVolt, sizeof( uint16_t) );
-    bufflen = bufflen + sizeof( uint16_t);
-    DEBUG( "Bufflen : " );
-    DEBUGln( bufflen );
+    #ifdef DATA_TELEINFOCLIENT
+      tic.getValues();
+      ticData.indexHP = tic.hchp;
+      ticData.indexHC = tic.hchc;
+      ticData.iinst = tic.iinst;
+      ticData.papp = tic.papp;
+      
+      
+      // Add data to the buffer
+      bufflen = 0;
+      dataType = DATA_TELEINFOCLIENT;
+      memcpy( buffer+bufflen, &dataType, sizeof( uint8_t ) );
+      bufflen = bufflen + sizeof( uint8_t );
+      memcpy( buffer+bufflen, &ticData, sizeof( struct TeleInfoClientData ) );
+      bufflen = bufflen + sizeof( struct TeleInfoClientData );
+      memcpy( buffer+bufflen, &vccCentiVolt, sizeof( uint16_t) );
+      bufflen = bufflen + sizeof( uint16_t);
+      if ( radio.sendWithRetry( RFM_GATEWAYID, &buffer, bufflen ) ) {
+        DEBUGln( "RFM - OK" );
+      } else {
+        DEBUGln( "RFM - NOK" );
+      }
+      radio.sleep();
+    #endif
     
-
-    if ( radio.sendWithRetry( RFM_GATEWAYID, &buffer, bufflen ) ) {
-      DEBUGln( "RFM - OK" );
-    } else {
-      DEBUGln( "RFM - NOK" );
-    }
-    radio.sleep();
     
     // Wait 1 min
    while ( time < 7 ) {

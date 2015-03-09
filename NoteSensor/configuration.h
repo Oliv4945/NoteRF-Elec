@@ -28,7 +28,7 @@
   #define PIN_DS18B20    6
   
   // Others
-  #define DEBUG_ON              // Uncomment to activate debug
+  // #define DEBUG_ON              // Uncomment to activate debug
   #define SERIAL_BAUD   115200  // Set serial communication speed
   
 

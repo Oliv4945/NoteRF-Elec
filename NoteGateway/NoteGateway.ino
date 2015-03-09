@@ -21,12 +21,6 @@
 
 
 // Structures
-struct TeleInfoClientData {
-  unsigned long indexHC;
-  unsigned long indexHP;
-  unsigned int iinst;
-  unsigned int papp;
-};
 struct dht22Data {
   int16_t temperature;
   uint16_t humidity;
@@ -34,6 +28,12 @@ struct dht22Data {
 struct DS18B20Data {
   int16_t temperature;
   uint16_t humidity;
+};
+struct TeleInfoClientData {
+  unsigned long indexHC;
+  unsigned long indexHP;
+  unsigned int iinst;
+  unsigned int papp;
 };
 
 RFM69 radio;
@@ -51,7 +51,7 @@ void setup() {
   radio.promiscuous(promiscuousMode);
   //radio.setFrequency(919000000);
   char buff[50];
-  sprintf(buff, "\nListening at %d Mhz...", FREQUENCY==RF69_433MHZ ? 433 : FREQUENCY==RF69_868MHZ ? 868 : 915);
+  sprintf(buff, "\nListening at %d Mhz, NetworkID : %d, GatewayID : %d", FREQUENCY==RF69_433MHZ ? 433 : FREQUENCY==RF69_868MHZ ? 868 : 915, NETWORKID, NODEID);
   Serial.println(buff);
 }
 
@@ -64,7 +64,9 @@ void loop() {
   char* bufferPointer;
   byte i;
   struct dht22Data dht22Data;
+  struct TeleInfoClientData ticData;
   uint16_t sensorBattery;
+  
   
   while (1) {
 
@@ -75,14 +77,8 @@ void loop() {
         bufferRFM[i] =  (char) radio.DATA[i]; // TBC - memcpy, direct ?
       }
       bufferRFM[ i ] = '\0';
+     
       
-      
-      /*
-      // Téléinfo - TBC
-      struct TeleInfoClientData ticData;
-      memcpy( &ticData, buffer, sizeof( struct TeleInfoClientData ) );
-      sprintf( buffer, "%d|%lu|%lu|%u|%u|%d|%d", radio.SENDERID, ticData.indexHP, ticData.indexHC, ticData.iinst, ticData.papp, battery, radio.RSSI );
-      */
       
       // Select the message ID - TBC - Switch( bufferRFM[0] );
       if ( bufferRFM[0] == DATA_STRING ) {
@@ -97,6 +93,14 @@ void loop() {
         bufferPointer += sizeof( struct dht22Data);
         memcpy( &sensorBattery, bufferPointer, sizeof( uint16_t ) );
         sprintf( bufferSerial, "%d|%d|%d|%d|%d|%d\n", radio.SENDERID, DATA_DHT22, dht22Data.temperature, dht22Data.humidity, sensorBattery, radio.RSSI );
+        Serial.print( bufferSerial );
+      }
+      if ( bufferRFM[0] == DATA_TELEINFOCLIENT ) {
+        bufferPointer = bufferRFM + 1;
+        memcpy( &ticData, bufferPointer, sizeof( struct TeleInfoClientData ) );
+        bufferPointer += sizeof( struct TeleInfoClientData);
+        memcpy( &sensorBattery, bufferPointer, sizeof( uint16_t ) );
+        sprintf( bufferSerial, "%d|%d|%lu|%lu|%u|%u|%d|%d\n", radio.SENDERID, DATA_TELEINFOCLIENT, ticData.indexHP, ticData.indexHC, ticData.iinst, ticData.papp, sensorBattery, radio.RSSI );
         Serial.print( bufferSerial );
       }
       
