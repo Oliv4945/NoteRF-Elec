@@ -16,6 +16,7 @@
 #define DATA_DHT22     1
 #define DATA_TELEINFOCLIENT 2
 #define DATA_DS18B20   3
+#define DATA_MOISTURE_SENSOR 4
 
 
 
@@ -58,16 +59,17 @@ void setup() {
 byte ackCount=0;
 uint32_t packetCount = 0;
 void loop() {
-  
+
   char bufferRFM[ 62 ];
   char bufferSerial[ 100 ];
   char* bufferPointer;
   byte i;
   struct dht22Data dht22Data;
   struct TeleInfoClientData ticData;
+  uint8_t dataMoisture;
   uint16_t sensorBattery;
-  
-  
+
+
   while (1) {
 
     if ( radio.receiveDone() ) {
@@ -77,12 +79,14 @@ void loop() {
         bufferRFM[i] =  (char) radio.DATA[i]; // TBC - memcpy, direct ?
       }
       bufferRFM[ i ] = '\0';
-     
-      
-      
+
+
+
       // Select the message ID - TBC - Switch( bufferRFM[0] );
       if ( bufferRFM[0] == DATA_STRING ) {
-        Serial.print( '[' ); Serial.print( radio.SENDERID, DEC ); Serial.print( "] " );
+        Serial.print( '[' ); 
+        Serial.print( radio.SENDERID, DEC ); 
+        Serial.print( "] " );
         bufferPointer = bufferRFM + 1;
         Serial.print( bufferPointer );
         Serial.print( '\n' );
@@ -103,15 +107,26 @@ void loop() {
         sprintf( bufferSerial, "%d|%d|%lu|%lu|%u|%u|%d|%d\n", radio.SENDERID, DATA_TELEINFOCLIENT, ticData.indexHP, ticData.indexHC, ticData.iinst, ticData.papp, sensorBattery, radio.RSSI );
         Serial.print( bufferSerial );
       }
-      
-      
-      
-      
+      if ( bufferRFM[0] == DATA_MOISTURE_SENSOR ) {
+        bufferPointer = bufferRFM + 1;
+        memcpy( &dataMoisture, bufferPointer, sizeof( uint8_t ) );
+        bufferPointer += sizeof( uint8_t );
+        memcpy( &sensorBattery, bufferPointer, sizeof( uint16_t ) );
+        sprintf( bufferSerial, "%d|%d|%u|%d|%d\n", radio.SENDERID, DATA_MOISTURE_SENSOR, dataMoisture, sensorBattery, radio.RSSI );
+        Serial.print( bufferSerial );
+      }
 
-      Serial.print('[');Serial.print(radio.SENDERID, DEC);Serial.print("] ");
+
+
+
+      Serial.print('[');
+      Serial.print(radio.SENDERID, DEC);
+      Serial.print("] ");
       if (promiscuousMode)
       {
-        Serial.print("to [");Serial.print(radio.TARGETID, DEC);Serial.print("] ");
+        Serial.print("to [");
+        Serial.print(radio.TARGETID, DEC);
+        Serial.print("] ");
       }
       Serial.print( " - i : " );
       Serial.print( i );
@@ -120,23 +135,24 @@ void loop() {
         byte theNodeID = radio.SENDERID;
         radio.sendACK();
         Serial.print(" - ACK sent.");
-  
+
         // When a node requests an ACK, respond to the ACK
         // and also send a packet requesting an ACK (every 3rd one only)
         // This way both TX/RX NODE functions are tested on 1 end at the GATEWAY
-       /* if (ackCount++%3==0)
-        {
-          Serial.print(" Pinging node ");
-          Serial.print(theNodeID);
-          Serial.print(" - ACK...");
-          delay(3); //need this when sending right after reception .. ?
-          if (radio.sendWithRetry(theNodeID, "ACK TEST", 8, 0))  // 0 = only 1 attempt, no retries
-            Serial.print("ok!");
-          else Serial.print("nothing");
-        }*/
+        /* if (ackCount++%3==0)
+         {
+         Serial.print(" Pinging node ");
+         Serial.print(theNodeID);
+         Serial.print(" - ACK...");
+         delay(3); //need this when sending right after reception .. ?
+         if (radio.sendWithRetry(theNodeID, "ACK TEST", 8, 0))  // 0 = only 1 attempt, no retries
+         Serial.print("ok!");
+         else Serial.print("nothing");
+         }*/
       }
       Serial.print( "\n" );
     }
   }
 }
+
 

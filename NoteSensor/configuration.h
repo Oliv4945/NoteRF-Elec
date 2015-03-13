@@ -17,15 +17,19 @@
   #define BATTERY_VIN         // Sense battery with divider on A7
   
   // Data types  -  Uncomment DATA_XXX to activate it
-  #define DATA_DHT22      1 
+  // #define DATA_DHT22      1 
   #define PIN_DHT22_DATA  4
   #define PIN_DHT22_POWER 5
   
-  #define DATA_TELEINFOCLIENT 2
+  // #define DATA_TELEINFOCLIENT 2
   #define PIN_TELEINFOCLIENT 3
   
-  #define DATA_DS18B20   3
+  // #define DATA_DS18B20   3
   #define PIN_DS18B20    6
+  
+  // #define DATA_MOISTURE_SENSOR 4
+  #define PIN_MOISTURE_DATA A1
+  #define PIN_MOISTURE_POWER A0
   
   // Others
   // #define DEBUG_ON              // Uncomment to activate debug

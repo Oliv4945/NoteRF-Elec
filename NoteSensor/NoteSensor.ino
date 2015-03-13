@@ -128,6 +128,12 @@ void setup() {
     LowPower.powerDown( SLEEP_1S, ADC_OFF, BOD_OFF );    // Avoid error on first reading in loop()
   #endif
   
+  #ifdef DATA_MOISTURE_SENSOR
+    // Setup the outputs
+    pinMode( PIN_MOISTURE_POWER, OUTPUT );
+    pinMode( PIN_MOISTURE_DATA, INPUT );
+    digitalWrite( PIN_MOISTURE_POWER, OUTPUT );
+  #endif
 }
 
 
@@ -143,6 +149,9 @@ void loop() {
   
   #ifdef DATA_TELEINFOCLIENT
     struct TeleInfoClientData ticData;
+  #endif
+  #ifdef DATA_MOISTURE_SENSOR
+    uint8_t dataMoisture;
   #endif
   
   // Variable initialisation
@@ -209,7 +218,7 @@ void loop() {
       radio.sleep();
     #endif
     
-    // TBC - Need to serialize data, or at least avoid sending VCC twice
+    // TBC - Avoid sending VCC twice
     
     #ifdef DATA_TELEINFOCLIENT
       tic.getValues();
@@ -235,9 +244,40 @@ void loop() {
       }
       radio.sleep();
     #endif
+
+    #ifdef DATA_MOISTURE_SENSOR
+      // Power up the moisture sensor
+      digitalWrite( PIN_MOISTURE_POWER, HIGH );
+      // Wait some time for the current to settle - time TBC
+      delay( 100 );
+      // Read data and divide it by 4 to fit inside 1 byte, enough for the required precision
+      dataMoisture = analogRead( PIN_MOISTURE_DATA )/4;
+      // Power down the sensor
+      digitalWrite( PIN_MOISTURE_POWER, LOW );
+      DEBUG( "MOISTURE - Value : " );
+      DEBUGln( dataMoisture );
+      
+      // Add data to the buffer
+      bufflen = 0;
+      dataType = DATA_MOISTURE_SENSOR;
+      memcpy( buffer+bufflen, &dataType, sizeof( uint8_t ) );
+      bufflen = bufflen + sizeof( uint8_t );
+      memcpy( buffer+bufflen, &dataMoisture, sizeof( uint8_t ) );
+      bufflen = bufflen + sizeof( uint8_t );
+      memcpy( buffer+bufflen, &vccCentiVolt, sizeof( uint16_t) );
+      bufflen = bufflen + sizeof( uint16_t);
+      if ( radio.sendWithRetry( RFM_GATEWAYID, &buffer, bufflen ) ) {
+        DEBUGln( "RFM - OK" );
+      } else {
+        DEBUGln( "RFM - NOK" );
+      }
+      radio.sleep();
+    #endif
     
     
-    // Wait 1 min
+    
+    
+    // Wait 1 min - TBC for a sending every minute
    while ( time < 7 ) {
       LowPower.powerDown( SLEEP_8S, ADC_OFF, BOD_OFF );
       time++;
