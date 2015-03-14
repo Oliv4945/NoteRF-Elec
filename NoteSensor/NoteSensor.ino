@@ -18,7 +18,7 @@
 
 // Activate/desactivate debug with only one #define
 // From low power lab :)
-#ifdef DEBUG_ON
+#ifdef DEBUG_ON 
   #define DEBUG( input )    { Serial.print(input); delay(1); }
   #define DEBUGDec( input ) { Serial.print( input, DEC); delay(1); }
   #define DEBUGHex( input ) { Serial.print(input, HEX); delay(1); }
@@ -73,6 +73,8 @@ void setup() {
   #ifdef DEBUG_ON
     Serial.begin( SERIAL_BAUD );
   #endif
+  DEBUG( "SensorRF - NodeID : " );
+  DEBUGln( RFM_NODEID );
   
   // RFM69 init.
   DEBUG( "RFM69 initialisation" );
@@ -142,11 +144,14 @@ void loop() {
   char buffer[50];
   boolean requestACK;
   uint8_t bufflen;
-  int i, time, dht22_check;
+  int time;
   uint16_t vccCentiVolt;
-  struct DHT22Data dht22Data;
   uint8_t dataType;
   
+  #ifdef DATA_DHT22
+    struct DHT22Data dht22Data;
+    int dht22_check;
+  #endif
   #ifdef DATA_TELEINFOCLIENT
     struct TeleInfoClientData ticData;
   #endif
@@ -206,26 +211,29 @@ void loop() {
         bufflen = bufflen + sizeof( uint16_t);
         DEBUG( "Bufflen : " );
         DEBUGln( bufflen );
+        
+        if ( radio.sendWithRetry( RFM_GATEWAYID, &buffer, bufflen ) ) {
+          DEBUGln( "RFM - OK" );
+        } else {
+          DEBUGln( "RFM - NOK" );
+        }
+      
       } else {  // TBC - Send error via RF
         DEBUG( "DHT22 - Check NOK : " );
         DEBUGln( dht22_check );
       }
-      if ( radio.sendWithRetry( RFM_GATEWAYID, &buffer, bufflen ) ) {
-        DEBUGln( "RFM - OK" );
-      } else {
-        DEBUGln( "RFM - NOK" );
-      }
-      radio.sleep();
     #endif
     
-    // TBC - Avoid sending VCC twice
+    // TBC - Avoid sending VCC twice - Separate data ?
     
-    #ifdef DATA_TELEINFOCLIENT
+    #ifdef DATA_TELEINFOCLIENT // TBC - Add timeout
       tic.getValues();
       ticData.indexHP = tic.hchp;
       ticData.indexHC = tic.hchc;
       ticData.iinst = tic.iinst;
       ticData.papp = tic.papp;
+      DEBUG( "PAPP - ");
+      DEBUGln( tic.papp );
       
       
       // Add data to the buffer
@@ -242,7 +250,6 @@ void loop() {
       } else {
         DEBUGln( "RFM - NOK" );
       }
-      radio.sleep();
     #endif
 
     #ifdef DATA_MOISTURE_SENSOR
@@ -271,19 +278,18 @@ void loop() {
       } else {
         DEBUGln( "RFM - NOK" );
       }
-      radio.sleep();
     #endif
     
     
-    
-    
-    // Wait 1 min - TBC for a sending every minute
-   while ( time < 7 ) {
+    // Put radio in sleep mode
+    radio.sleep();
+    // Wait 1 min minus 2 secondes - TBC for a sending every minute
+    while ( time < 7 ) {
       LowPower.powerDown( SLEEP_8S, ADC_OFF, BOD_OFF );
       time++;
       DEBUG( "Time : "); DEBUGln( time );
     }
-    LowPower.powerDown( SLEEP_4S, ADC_OFF, BOD_OFF );
+    LowPower.powerDown( SLEEP_2S, ADC_OFF, BOD_OFF );
     time = 0;
   }
 }

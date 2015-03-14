@@ -10,7 +10,7 @@
   #define RFM_ENCRYPTKEY    "sampleEncryptKey" // Exactly the same 16 characters/bytes on all nodes!
   #define RFM_IS_RFM69HW           // Uncomment only for RFM69HW! Leave out if you have RFM69W!
   #define RFM_ACK_TIME      30     // max # of ms to wait for an ack
-  #define RFM_POWER_LEVEL   10     // Set power level - TBC for RFM96HW
+  #define RFM_POWER_LEVEL   10     // Set power level - TBC for RFM96HW [0-32]
   
   /*************          Node configuration      *************/
   // #define BATTERY_VCC      // Sense Arduino's VCC battery with 1.1V internal ref

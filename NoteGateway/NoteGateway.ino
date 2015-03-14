@@ -128,8 +128,8 @@ void loop() {
         Serial.print(radio.TARGETID, DEC);
         Serial.print("] ");
       }
-      Serial.print( " - i : " );
-      Serial.print( i );
+      Serial.print( " - radio.DATALEN : " );
+      Serial.print( radio.DATALEN );
       if (radio.ACKRequested())
       {
         byte theNodeID = radio.SENDERID;
