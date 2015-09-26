@@ -30,6 +30,9 @@
   // #define DATA_MOISTURE_SENSOR 4
   #define PIN_MOISTURE_DATA A1
   #define PIN_MOISTURE_POWER A0
+
+  
+  // #define DATA_BMP 5  // Barometer - Works with Bosh BMPXXX
   
   // Others
   // #define DEBUG_ON              // Uncomment to activate debug

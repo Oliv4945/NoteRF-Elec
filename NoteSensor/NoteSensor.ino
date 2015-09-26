@@ -1,5 +1,6 @@
 
 
+
 // From LowPowerLab's node example code
 
 // Includes
@@ -14,6 +15,12 @@
 #ifdef DATA_TELEINFOCLIENT
   #include <SoftwareSerial.h>
   #include <TeleInfoClient.h>
+#endif
+#ifdef DATA_BMP
+  // From https://github.com/jrowberg/i2cdevlib/tree/master/Arduino/BMP085
+  #include "Wire.h"
+  #include "I2Cdev.h"
+  #include "BMP085.h"
 #endif
 
 // Activate/desactivate debug with only one #define
@@ -56,6 +63,12 @@
     uint16_t humidity;
   };
 #endif
+#ifdef DATA_BMP
+  struct BMPData {
+    int16_t temperature;
+    uint32_t pressure;
+  };
+#endif
 
 // Objects
 RFM69 radio;
@@ -63,7 +76,10 @@ RFM69 radio;
   dht DHT22;
 #endif
 #ifdef DATA_TELEINFOCLIENT
-  TeleInfoClient tic( 3, 10, 11);
+  TeleInfoClient tic( 3, 10, 11 );
+#endif
+#ifdef DATA_BMP
+  BMP085 barometer;
 #endif
 
 
@@ -77,8 +93,9 @@ void setup() {
   DEBUGln( RFM_NODEID );
   
   // RFM69 init.
-  DEBUG( "RFM69 initialisation" );
+  DEBUG( "RFM69 - Initialisation" );
   radio.initialize( RFM_FREQUENCY, RFM_NODEID, RFM_NETWORKID );
+  DEBUG( "RFM69 - Initialised" );
   #ifdef RFM_IS_RFM69HW
     radio.setHighPower( true );
   #endif
@@ -136,6 +153,47 @@ void setup() {
     pinMode( PIN_MOISTURE_DATA, INPUT );
     digitalWrite( PIN_MOISTURE_POWER, OUTPUT );
   #endif
+  #ifdef DATA_BMP
+    Wire.begin();
+    barometer.initialize();
+    #ifdef DEBUG_ON
+      Serial.print( barometer.testConnection() ? "BMP - Connection successful" : "BMP - Connection failed") ;
+    #endif
+  #endif
+}
+
+unsigned int readVin() {
+  int Vin;
+  // Vin = analogRead( A7 )*3.3/1024*2*100*417/406; // Read value*3.3/1024, Times 2 for resistors, times 100 for centivolts, *417/406 for calibration
+  Vin = (unsigned int) analogRead( A7 )*0.6619939193; // TBC - Add calibration value in configuration.h
+  return Vin;
+  
+}
+// http://provideyourown.com/2012/secret-arduino-voltmeter-measure-battery-voltage/
+int readVcc() {
+  // Read 1.1V reference against AVcc
+  // set the reference to Vcc and the measurement to the internal 1.1V reference
+  #if defined(__AVR_ATmega32U4__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
+    ADMUX = _BV(REFS0) | _BV(MUX4) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
+  #elif defined (__AVR_ATtiny24__) || defined(__AVR_ATtiny44__) || defined(__AVR_ATtiny84__)
+    ADMUX = _BV(MUX5) | _BV(MUX0);
+  #elif defined (__AVR_ATtiny25__) || defined(__AVR_ATtiny45__) || defined(__AVR_ATtiny85__)
+    ADMUX = _BV(MUX3) | _BV(MUX2);
+  #else
+    ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
+  #endif  
+ 
+  delay( 2 );                       // Wait for Vref to settle
+  ADCSRA |= _BV( ADSC );            // Start conversion
+  while (bit_is_set(ADCSRA,ADSC));  // Measuring
+ 
+  uint8_t low  = ADCL;              // Must read ADCL first - it then locks ADCH  
+  uint8_t high = ADCH;              // Unlocks both
+ 
+  int result = (high<<8) | low;
+ 
+  result = 109881L / result;        // Calculate Vcc (in centiV); 1125300 = 1.1*etalonnage*1023*1000
+  return result;                    // Vcc in millivolts
 }
 
 
@@ -147,6 +205,7 @@ void loop() {
   int time;
   uint16_t vccCentiVolt;
   uint8_t dataType;
+  int32_t lastMicros;
   
   #ifdef DATA_DHT22
     struct DHT22Data dht22Data;
@@ -157,6 +216,9 @@ void loop() {
   #endif
   #ifdef DATA_MOISTURE_SENSOR
     uint8_t dataMoisture;
+  #endif
+  #ifdef DATA_BMP
+    struct BMPData bmpData;
   #endif
   
   // Variable initialisation
@@ -252,6 +314,7 @@ void loop() {
       }
     #endif
 
+    /*****      MOISTURE SENSOR     ******/
     #ifdef DATA_MOISTURE_SENSOR
       // Power up the moisture sensor
       digitalWrite( PIN_MOISTURE_POWER, HIGH );
@@ -279,7 +342,46 @@ void loop() {
         DEBUGln( "RFM - NOK" );
       }
     #endif
-    
+
+
+    /*****      BAROMETRIC SENSOR     ******/
+    #ifdef DATA_BMP
+      // Request temperature
+      barometer.setControl( BMP085_MODE_TEMPERATURE );
+      // Wait appropriate time for conversion (4.5ms delay)
+      lastMicros = micros();
+      while (micros() - lastMicros < barometer.getMeasureDelayMicroseconds());
+      // Read calibrated temperature value in degrees Celsius
+      bmpData.temperature = ( (int16_t) (barometer.getTemperatureC()*100.0) );
+      // Request pressure (3x oversampling mode, high detail, 23.5ms delay)
+      barometer.setControl( BMP085_MODE_PRESSURE_3 );
+      while (micros() - lastMicros < barometer.getMeasureDelayMicroseconds());
+      // Read calibrated pressure value in Pascals (Pa)
+      bmpData.pressure = ( (uint32_t) barometer.getPressure() );
+      // Display values
+      DEBUG( "BMP - Temperature : " );
+      DEBUGln( bmpData.temperature );
+      DEBUG( "BMP - Pressure : " );
+      DEBUGln( bmpData.pressure );
+      
+      // Add data to the buffer
+      bufflen = 0;
+      dataType = DATA_BMP;
+      memcpy( buffer+bufflen, &dataType, sizeof( uint8_t ) );
+      bufflen = bufflen + sizeof( uint8_t );
+      memcpy( buffer+bufflen, &bmpData, sizeof( struct BMPData ) );
+      bufflen = bufflen + sizeof( struct BMPData );
+      // Prepare buffer
+      memcpy( buffer+bufflen, &vccCentiVolt, sizeof( uint16_t) );
+      bufflen = bufflen + sizeof( uint16_t);
+      DEBUG( "Bufflen : " );
+      DEBUGln( bufflen );
+      if ( radio.sendWithRetry( RFM_GATEWAYID, &buffer, bufflen ) ) {
+        DEBUGln( "RFM - OK" );
+      } else {
+        DEBUGln( "RFM - NOK" );
+      }
+    #endif
     
     // Put radio in sleep mode
     radio.sleep();
@@ -295,37 +397,7 @@ void loop() {
 }
 
 
-// http://provideyourown.com/2012/secret-arduino-voltmeter-measure-battery-voltage/
-int readVcc() {
-  // Read 1.1V reference against AVcc
-  // set the reference to Vcc and the measurement to the internal 1.1V reference
-  #if defined(__AVR_ATmega32U4__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
-    ADMUX = _BV(REFS0) | _BV(MUX4) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
-  #elif defined (__AVR_ATtiny24__) || defined(__AVR_ATtiny44__) || defined(__AVR_ATtiny84__)
-    ADMUX = _BV(MUX5) | _BV(MUX0);
-  #elif defined (__AVR_ATtiny25__) || defined(__AVR_ATtiny45__) || defined(__AVR_ATtiny85__)
-    ADMUX = _BV(MUX3) | _BV(MUX2);
-  #else
-    ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
-  #endif  
- 
-  delay( 2 );                       // Wait for Vref to settle
-  ADCSRA |= _BV( ADSC );            // Start conversion
-  while (bit_is_set(ADCSRA,ADSC));  // Measuring
- 
-  uint8_t low  = ADCL;              // Must read ADCL first - it then locks ADCH  
-  uint8_t high = ADCH;              // Unlocks both
- 
-  int result = (high<<8) | low;
- 
-  result = 109881L / result;        // Calculate Vcc (in centiV); 1125300 = 1.1*etalonnage*1023*1000
-  return result;                    // Vcc in millivolts
-}
 
-unsigned int readVin() {
-  int Vin;
-  // Vin = analogRead( A7 )*3.3/1024*2*100*417/406; // Read value*3.3/1024, Times 2 for resistors, times 100 for centivolts, *417/406 for calibration
-  Vin = (unsigned int) analogRead( A7 )*0.6619939193; // TBC - Add calibration value in configuration.h
-  return Vin;
-  
-}
+
+
+

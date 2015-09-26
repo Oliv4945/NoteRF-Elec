@@ -17,12 +17,13 @@
 #define DATA_TELEINFOCLIENT 2
 #define DATA_DS18B20   3
 #define DATA_MOISTURE_SENSOR 4
+#define DATA_BMP 5
 
 
 
 
 // Structures
-struct dht22Data {
+struct DHT22Data {
   int16_t temperature;
   uint16_t humidity;
 };
@@ -36,9 +37,13 @@ struct TeleInfoClientData {
   unsigned int iinst;
   unsigned int papp;
 };
+struct BMPData {
+  int16_t temperature;
+  uint32_t pressure;
+};
 
 RFM69 radio;
-bool promiscuousMode = false; //set to 'true' to sniff all packets on the same network
+bool promiscuousMode = false; // Set to 'true' to sniff all packets on the same network
 
 void setup() {
   Serial.begin(SERIAL_BAUD);
@@ -64,10 +69,11 @@ void loop() {
   char bufferSerial[ 100 ];
   char* bufferPointer;
   byte i;
-  struct dht22Data dht22Data;
+  struct DHT22Data dht22Data;
   struct TeleInfoClientData ticData;
   uint8_t dataMoisture;
   uint16_t sensorBattery;
+  struct BMPData bmpData;
 
 
   while (1) {
@@ -93,8 +99,8 @@ void loop() {
       }
       if ( bufferRFM[0] == DATA_DHT22 ) {
         bufferPointer = bufferRFM + 1;
-        memcpy( &dht22Data, bufferPointer, sizeof( struct dht22Data) );
-        bufferPointer += sizeof( struct dht22Data);
+        memcpy( &dht22Data, bufferPointer, sizeof( struct DHT22Data) );
+        bufferPointer += sizeof( struct DHT22Data);
         memcpy( &sensorBattery, bufferPointer, sizeof( uint16_t ) );
         sprintf( bufferSerial, "%d|%d|%d|%d|%d|%d\n", radio.SENDERID, DATA_DHT22, dht22Data.temperature, dht22Data.humidity, sensorBattery, radio.RSSI );
         Serial.print( bufferSerial );
@@ -115,8 +121,22 @@ void loop() {
         sprintf( bufferSerial, "%d|%d|%u|%d|%d\n", radio.SENDERID, DATA_MOISTURE_SENSOR, dataMoisture, sensorBattery, radio.RSSI );
         Serial.print( bufferSerial );
       }
-
-
+      if ( bufferRFM[0] == DATA_DS18B20 ) {
+        bufferPointer = bufferRFM + 1;
+        memcpy( &dataMoisture, bufferPointer, sizeof( uint16_t ) );
+        bufferPointer += sizeof( uint16_t );
+        memcpy( &sensorBattery, bufferPointer, sizeof( uint16_t ) );
+        sprintf( bufferSerial, "%d|%d|%d|%d|%d\n", radio.SENDERID, DATA_DS18B20, dataMoisture, sensorBattery, radio.RSSI );
+        Serial.print( bufferSerial );
+      }
+      if ( bufferRFM[0] == DATA_BMP ) {
+        bufferPointer = bufferRFM + 1;
+        memcpy( &bmpData, bufferPointer, sizeof( struct BMPData ) );
+        bufferPointer += sizeof( BMPData );
+        memcpy( &sensorBattery, bufferPointer, sizeof( uint16_t ) );
+        sprintf( bufferSerial, "%d|%d|%d|%lu|%d|%d\n", radio.SENDERID, DATA_BMP, bmpData.temperature, bmpData.pressure, sensorBattery, radio.RSSI );
+        Serial.print( bufferSerial );
+      }
 
 
       Serial.print('[');
