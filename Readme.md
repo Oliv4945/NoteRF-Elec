@@ -15,5 +15,5 @@ Sensors' code.
 You just have to set config.h to suit your needs. Also uncommenting a `#define DATA_SENSORNAME` will activate it.
 
 ## Schematics
-Schematics to be added
+Hardware source files made with Eagle 7.3.0 + [Spakfun library](https://github.com/sparkfun/SparkFun-Eagle-Libraries)
 
