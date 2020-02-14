@@ -3,7 +3,7 @@
 // It also looks for an onboard FLASH chip, if present
 // Library and code by Felix Rusu - felix@lowpowerlab.com
 // Get the RFM69 and SPIFlash library at: https://github.com/LowPowerLab/
-
+#include <Arduino.h>
 #include <RFM69.h>    //get it here: https://www.github.com/lowpowerlab/rfm69
 #include <SPI.h>
 #include "configuration.h"
@@ -18,6 +18,8 @@
 #define DATA_DS18B20   3
 #define DATA_MOISTURE_SENSOR 4
 #define DATA_BMP 5
+#define DATA_INTERRUPT 6
+#define DATA_VL53L0X 7
 
 
 
@@ -74,6 +76,8 @@ void loop() {
   uint8_t dataMoisture;
   uint16_t sensorBattery;
   struct BMPData bmpData;
+  uint8_t interruptData;
+  uint16_t vl53l0xData;
 
 
   while (1) {
@@ -137,6 +141,22 @@ void loop() {
         sprintf( bufferSerial, "%d|%d|%d|%lu|%d|%d\n", radio.SENDERID, DATA_BMP, bmpData.temperature, bmpData.pressure, sensorBattery, radio.RSSI );
         Serial.print( bufferSerial );
       }
+      if ( bufferRFM[0] == DATA_INTERRUPT ) {
+        bufferPointer = bufferRFM + 1;
+        memcpy( &interruptData, bufferPointer, sizeof( uint8_t ) );
+        bufferPointer += sizeof( uint8_t );
+        memcpy( &sensorBattery, bufferPointer, sizeof( uint16_t ) );
+        sprintf( bufferSerial, "%d|%d|%d|%d|%d\n", radio.SENDERID, DATA_INTERRUPT, interruptData, sensorBattery, radio.RSSI );
+        Serial.print( bufferSerial );
+      }
+      if ( bufferRFM[0] == DATA_VL53L0X ) {
+        bufferPointer = bufferRFM + 1;
+        memcpy( &vl53l0xData, bufferPointer, sizeof( uint16_t ) );
+        bufferPointer += sizeof( uint16_t );
+        memcpy( &sensorBattery, bufferPointer, sizeof( uint16_t ) );
+        sprintf( bufferSerial, "%d|%d|%d|%d|%d\n", radio.SENDERID, DATA_VL53L0X, vl53l0xData, sensorBattery, radio.RSSI );
+        Serial.print( bufferSerial );
+      }
 
 
       Serial.print('[');
@@ -174,5 +194,3 @@ void loop() {
     }
   }
 }
-
-
