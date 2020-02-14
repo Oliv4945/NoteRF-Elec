@@ -3,14 +3,14 @@
   
   
   /*************          RF configuration      *************/
-  #define RFM_NODEID        1      // Unique for each node on same network
+  #define RFM_NODEID        4     // Unique for each node on same network
   #define RFM_NETWORKID     110    // The same on all nodes that talk to each other
   #define RFM_GATEWAYID     0      // Gateway to reach
   #define RFM_FREQUENCY     RF69_433MHZ
   #define RFM_ENCRYPTKEY    "sampleEncryptKey" // Exactly the same 16 characters/bytes on all nodes!
   #define RFM_IS_RFM69HW           // Uncomment only for RFM69HW! Leave out if you have RFM69W!
   #define RFM_ACK_TIME      30     // max # of ms to wait for an ack
-  #define RFM_POWER_LEVEL   10     // Set power level - TBC for RFM96HW [0-32]
+  #define RFM_POWER_LEVEL   32     // Set power level - TBC for RFM96HW [0-32]
   
   /*************          Node configuration      *************/
   // #define BATTERY_VCC      // Sense Arduino's VCC battery with 1.1V internal ref
@@ -33,9 +33,14 @@
 
   
   // #define DATA_BMP 5  // Barometer - Works with Bosh BMPXXX
+
+  // #define DATA_INTERRUPT 6
+
+  // #define DATA_VL53L0X 7
+  #define VL53L0X_TIMING_REC_us 150000 // Precision vs time. (us)
   
   // Others
-  // #define DEBUG_ON              // Uncomment to activate debug
+  #define DEBUG_ON              // Uncomment to activate debug
   #define SERIAL_BAUD   115200  // Set serial communication speed
   
 
