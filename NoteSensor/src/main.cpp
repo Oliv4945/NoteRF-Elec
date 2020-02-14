@@ -1,12 +1,7 @@
-
-
-
-// From LowPowerLab's node example code
-
 // Includes
+#include <Arduino.h>
 #include <RFM69.h>    // Get it here: https://www.github.com/lowpowerlab/rfm69
 #include <SPI.h>
-#include <OneWire.h>
 #include <LowPower.h>
 #include "configuration.h"
 #ifdef DATA_DHT22
@@ -21,6 +16,10 @@
   #include "Wire.h"
   #include "I2Cdev.h"
   #include "BMP085.h"
+#endif
+#ifdef DATA_VL53L0X
+  #include <Wire.h>
+  #include <VL53L0X.h>
 #endif
 
 // Activate/desactivate debug with only one #define
@@ -70,7 +69,7 @@
   };
 #endif
 
-// Objects
+// Objects and globals
 RFM69 radio;
 #ifdef DATA_DHT22
   dht DHT22;
@@ -81,7 +80,14 @@ RFM69 radio;
 #ifdef DATA_BMP
   BMP085 barometer;
 #endif
+#ifdef DATA_INTERRUPT
+  uint8_t interruptData;
+#endif
 
+#ifdef DATA_VL53L0X
+  VL53L0X tof;
+#endif
+  
 
 void setup() {
   
@@ -160,6 +166,21 @@ void setup() {
       Serial.print( barometer.testConnection() ? "BMP - Connection successful" : "BMP - Connection failed") ;
     #endif
   #endif
+  #ifdef DATA_INTERRUPT
+    pinMode(3, INPUT);
+  #endif
+  #ifdef DATA_VL53L0X
+      tof.init();
+      tof.setTimeout(VL53L0X_TIMING_REC_us*2/1000);
+      tof.setMeasurementTimingBudget(VL53L0X_TIMING_REC_us);
+
+      // Set long range
+      // lower the return signal rate limit (default is 0.25 MCPS)
+      tof.setSignalRateLimit(0.1);
+      // increase laser pulse periods (defaults are 14 and 10 PCLKs)
+      tof.setVcselPulsePeriod(VL53L0X::VcselPeriodPreRange, 18);
+      tof.setVcselPulsePeriod(VL53L0X::VcselPeriodFinalRange, 14);
+  #endif
 }
 
 unsigned int readVin() {
@@ -197,6 +218,13 @@ int readVcc() {
 }
 
 
+// Interruption sub routine on pin 3
+#ifdef DATA_INTERRUPT
+  void isr_D3() {
+    interruptData = 1;
+  }
+#endif
+
 void loop() {
   // Variable declaration
   char buffer[50];
@@ -224,6 +252,9 @@ void loop() {
   // Variable initialisation
   requestACK = false;
   time = 0;
+  #ifdef DATA_INTERRUPT
+    interruptData = 0;
+  #endif
   
   // Send message to the gateway
   bufflen = sizeof( uint8_t );
@@ -382,22 +413,88 @@ void loop() {
         DEBUGln( "RFM - NOK" );
       }
     #endif
+
+
+    #ifdef DATA_INTERRUPT
+      // Send interrupt on wake up
+      if (interruptData != 0) {
+        DEBUG( "INTERRUPT - Triggered : " );
+        DEBUGln( interruptData );
+        
+        // Add data to the buffer
+        bufflen = 0;
+        dataType = DATA_INTERRUPT;
+        memcpy( buffer+bufflen, &dataType, sizeof( uint8_t ) );
+        bufflen = bufflen + sizeof( uint8_t );
+        memcpy( buffer+bufflen, &interruptData, sizeof( uint8_t ) );
+        bufflen = bufflen + sizeof(  uint8_t );
+        // Prepare buffer
+        memcpy( buffer+bufflen, &vccCentiVolt, sizeof( uint16_t) );
+        bufflen = bufflen + sizeof( uint16_t);
+        DEBUG( "Bufflen : " );
+        DEBUGln( bufflen );
+        if ( radio.sendWithRetry( RFM_GATEWAYID, &buffer, bufflen ) ) {
+          DEBUGln( "RFM - OK" );
+        } else {
+          DEBUGln( "RFM - NOK" );
+        }
+        
+        interruptData = 0;
+        
+      }
+    #endif
+
+    #ifdef DATA_VL53L0X
+      uint16_t distance = tof.readRangeSingleMillimeters();
+      if (tof.timeoutOccurred()) {
+        DEBUGln("TOF - Timeout");
+      } else {
+        DEBUG("TOF - Distance: ");
+        DEBUG(distance);
+        DEBUGln(" mm");
+      }
+      // Transmit even in case of timeout (0xFFFF)
+      
+      // Add data to the buffer
+      bufflen = 0;
+      dataType = DATA_VL53L0X;
+      memcpy( buffer+bufflen, &dataType, sizeof( uint8_t ) );
+      bufflen = bufflen + sizeof( uint8_t );
+      memcpy( buffer+bufflen, &distance, sizeof( uint16_t ) );
+      bufflen = bufflen + sizeof( uint16_t );
+      // Prepare buffer
+      memcpy( buffer+bufflen, &vccCentiVolt, sizeof( uint16_t) );
+      bufflen = bufflen + sizeof( uint16_t);
+      DEBUG( "Bufflen : " );
+      DEBUGln( bufflen );
+      if ( radio.sendWithRetry( RFM_GATEWAYID, &buffer, bufflen ) ) {
+        DEBUGln( "RFM - OK" );
+      } else {
+        DEBUGln( "RFM - NOK" );
+      }
+    #endif
+    
     
     // Put radio in sleep mode
-    radio.sleep();
-    // Wait 1 min minus 2 secondes - TBC for a sending every minute
-    while ( time < 7 ) {
-      LowPower.powerDown( SLEEP_8S, ADC_OFF, BOD_OFF );
-      time++;
-      DEBUG( "Time : "); DEBUGln( time );
-    }
-    LowPower.powerDown( SLEEP_2S, ADC_OFF, BOD_OFF );
-    time = 0;
+    #ifndef DATA_INTERRUPT
+        radio.sleep();
+      // Wait 1 min minus 2 secondes - TBC for a sending every minute
+      while ( time < 7 ) {
+        LowPower.powerDown( SLEEP_8S, ADC_OFF, BOD_OFF );
+        time++;
+        DEBUG( "Time : "); DEBUGln( time );
+      }
+      LowPower.powerDown( SLEEP_2S, ADC_OFF, BOD_OFF );
+      time = 0;
+    #endif
+    #ifdef DATA_INTERRUPT
+      attachInterrupt(digitalPinToInterrupt(3), isr_D3, RISING);
+      LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF); 
+      // Disable external pin interrupt on wake up pin.
+      detachInterrupt(0);
+    #endif
   }
 }
-
-
-
 
 
 
